@@ -37,11 +37,11 @@ function snapToCard(index) {
   if (snapTween) snapTween.kill();
   snapTween = gsap.to(eventsScroll, {
     scrollTop: targetY,
-    duration: 0.65,
-    ease: 'power2.out',
+    duration: 0.72,
+    ease: 'power3.out',
     onComplete: () => {
       eventsScroll.scrollTop = targetY;
-      suppressScrollUntil = performance.now() + 150;
+      suppressScrollUntil = performance.now() + 250;
       isSnapping = false;
       snapTween = null;
       boundaryAccum = 0;
@@ -66,8 +66,25 @@ function atCardBoundary(direction) {
 
 // ── Wheel: native scroll within card, snap at boundaries ──
 let boundaryAccum = 0;
-const BOUNDARY_THRESHOLD = 25;
+const BOUNDARY_THRESHOLD = 130;
+const FRICTION_ZONE = 40;
 let boundaryTimer;
+
+function scrollFriction(direction) {
+  const card = eventCards[currentIndex];
+  const cardTop = card.offsetTop;
+  const cardHeight = card.offsetHeight;
+  const scrollTop = eventsScroll.scrollTop;
+  const viewHeight = eventsScroll.clientHeight;
+
+  const distFromEdge = direction > 0
+    ? (cardTop + cardHeight) - (scrollTop + viewHeight)
+    : scrollTop - cardTop;
+
+  if (distFromEdge >= FRICTION_ZONE) return 1;
+  if (distFromEdge <= 0) return 0;
+  return distFromEdge / FRICTION_ZONE;
+}
 
 eventsScroll.addEventListener('wheel', (e) => {
   if (isSnapping || snapTween?.isActive() || performance.now() < suppressScrollUntil) {
@@ -87,8 +104,13 @@ eventsScroll.addEventListener('wheel', (e) => {
     }
 
     clearTimeout(boundaryTimer);
-    boundaryTimer = setTimeout(() => { boundaryAccum = 0; }, 200);
+    boundaryTimer = setTimeout(() => { boundaryAccum = 0; }, 350);
   } else {
+    const friction = scrollFriction(direction);
+    if (friction < 1) {
+      e.preventDefault();
+      eventsScroll.scrollTop += e.deltaY * friction;
+    }
     boundaryAccum = 0;
   }
 }, { passive: false });
@@ -109,7 +131,7 @@ eventsScroll.addEventListener('touchmove', (e) => {
 eventsScroll.addEventListener('touchend', () => {
   if (isSnapping) return;
   const delta = touchStartY - touchLastY;
-  if (Math.abs(delta) < 30) return;
+  if (Math.abs(delta) < 75) return;
   const direction = delta > 0 ? 1 : -1;
   if (atCardBoundary(direction)) {
     snapToCard(currentIndex + direction);

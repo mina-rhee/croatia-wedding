@@ -1,77 +1,93 @@
-// ── Guest Accommodation Data ──
-// Edit this array to add/remove markers on the map.
-const accommodations = [
-  {
-    name: 'Villa Dubrovnik',
-    guests: 'Sarah & Tom',
-    lat: 42.6394,
-    lng: 18.0856,
-  },
-  {
-    name: 'Hotel Excelsior',
-    guests: 'James & Priya',
-    lat: 42.6401,
-    lng: 18.1145,
-  },
-  {
-    name: 'Old Town Apartment',
-    guests: 'Luca & Maria',
-    lat: 42.6411,
-    lng: 18.1083,
-  },
-  {
-    name: 'Sun Gardens Resort',
-    guests: 'Alex & Jordan',
-    lat: 42.6650,
-    lng: 18.0560,
-  },
-  {
-    name: 'Wedding Venue',
-    guests: '',
-    lat: 42.6350,
-    lng: 18.1050,
-  },
+// ── Event Location Data ──
+const locations = [
+  { name: 'Lambik Bar & Bistro', lat: 43.0587, lng: 16.1991, day: 'mon' },
+  { name: 'Fort George',         lat: 43.0739, lng: 16.1967, day: 'tue' },
+  { name: 'Marshal Club Hotel',  lat: 43.0608, lng: 16.1850, day: 'wed' },
+  { name: 'Stiniva Beach',       lat: 43.0214, lng: 16.1716, day: 'wed' },
+  { name: 'Padel Centar Split',  lat: 43.5120, lng: 16.4920, day: 'thu' },
+  { name: "Diocletian's Palace", lat: 43.5085, lng: 16.4402, day: 'thu' },
 ];
 
-// ── Map Initialization ──
-let map = null;
+// ── Marker Icon Factories ──
+function makeIcon(size, color) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:${size}px; height:${size}px;
+      background:${color};
+      border-radius:50%;
+      border:2px solid #fff;
+      box-shadow:0 1px 4px rgba(0,0,0,.25);
+      transition: all 0.3s ease;
+    "></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
 
-function initMap() {
-  if (map) {
-    map.invalidateSize();
-    return;
-  }
+const ACTIVE_ICON  = () => makeIcon(16, '#c0392b');
+const INACTIVE_ICON = () => makeIcon(9, '#8a8a8a');
 
-  map = L.map('map-container').setView([42.6480, 18.0900], 13);
+// ── Map Setup ──
+const map = L.map('map-container', {
+  zoomControl: false,
+  attributionControl: false,
+});
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png', {
+  maxZoom: 18,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &middot; <a href="https://carto.com/">CARTO</a>',
+}).addTo(map);
+
+L.control.attribution({ position: 'bottomright', prefix: false }).addTo(map);
+
+// ── Create Markers ──
+const markers = locations.map(loc => {
+  const marker = L.marker([loc.lat, loc.lng], {
+    icon: INACTIVE_ICON(),
   }).addTo(map);
 
-  const venueIcon = L.divIcon({
-    className: 'marker-venue',
-    html: '<div style="background:#c0392b;width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)"></div>',
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
+  marker.bindPopup(`<strong>${loc.name}</strong>`, {
+    closeButton: false,
+    className: 'map-popup',
   });
 
-  const guestIcon = L.divIcon({
-    className: 'marker-guest',
-    html: '<div style="background:#4a7c6f;width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)"></div>',
-    iconSize: [12, 12],
-    iconAnchor: [6, 6],
+  return { marker, day: loc.day, lat: loc.lat, lng: loc.lng, name: loc.name };
+});
+
+// ── Set initial view so Leaflet doesn't error ──
+const monLocs = locations.filter(l => l.day === 'mon');
+const initBounds = L.latLngBounds(monLocs.map(l => [l.lat, l.lng]));
+map.fitBounds(initBounds, { padding: [50, 50], maxZoom: 15 });
+
+// ── Highlight + Fly To Active Day ──
+let currentDay = 'mon';
+
+// Set initial marker states
+markers.forEach(m => {
+  const isActive = m.day === 'mon';
+  m.marker.setIcon(isActive ? ACTIVE_ICON() : INACTIVE_ICON());
+  m.marker.setZIndexOffset(isActive ? 1000 : 0);
+});
+
+function highlightDay(dayId) {
+  if (dayId === currentDay) return;
+  currentDay = dayId;
+
+  // Update marker icons
+  markers.forEach(m => {
+    const isActive = m.day === dayId;
+    m.marker.setIcon(isActive ? ACTIVE_ICON() : INACTIVE_ICON());
+    m.marker.setZIndexOffset(isActive ? 1000 : 0);
   });
 
-  accommodations.forEach(place => {
-    const isVenue = place.name === 'Wedding Venue';
-    const icon = isVenue ? venueIcon : guestIcon;
-    const popup = isVenue
-      ? `<strong>${place.name}</strong>`
-      : `<strong>${place.name}</strong><br>${place.guests}`;
+  // Fly to the active day's bounds
+  const dayMarkers = markers.filter(m => m.day === dayId);
+  const bounds = L.latLngBounds(dayMarkers.map(m => [m.lat, m.lng]));
 
-    L.marker([place.lat, place.lng], { icon })
-      .addTo(map)
-      .bindPopup(popup);
+  map.flyToBounds(bounds, {
+    padding: [50, 50],
+    maxZoom: 15,
+    duration: 1.2,
   });
 }

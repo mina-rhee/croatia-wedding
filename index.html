@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wedding in Croatia</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="itinerary">Itinerary</button>
+    <button class="tab-btn" data-tab="map">Map</button>
+  </nav>
+
+  <main>
+    <!-- Itinerary Tab -->
+    <section id="itinerary" class="tab-content active">
+
+      <div class="hero">
+        <div class="hero-overlay">
+          <h1 class="animate">Our Wedding</h1>
+          <p class="hero-date animate">September 12, 2026</p>
+          <p class="hero-location animate">Dubrovnik, Croatia</p>
+        </div>
+      </div>
+
+      <div class="container">
+
+        <!-- Day 1 -->
+        <h2 class="section-title animate">Day 1 — Thursday, September 10</h2>
+        <div class="timeline">
+          <div class="timeline-item animate">
+            <div class="timeline-time">Afternoon</div>
+            <div class="timeline-content">
+              <h3>Arrivals</h3>
+              <p>Settle into your accommodation. Take in the views, shake off the jet lag, and get ready for a wonderful few days.</p>
+            </div>
+          </div>
+          <div class="timeline-item animate">
+            <div class="timeline-time">7:00 PM</div>
+            <div class="timeline-content">
+              <h3>Welcome Dinner</h3>
+              <p>Casual dinner at a local restaurant in the Old Town. Dress code: come as you are.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Day 2 -->
+        <h2 class="section-title animate">Day 2 — Friday, September 11</h2>
+        <div class="timeline">
+          <div class="timeline-item animate">
+            <div class="timeline-time">10:00 AM</div>
+            <div class="timeline-content">
+              <h3>Free Morning</h3>
+              <p>Explore Dubrovnik at your own pace — walk the city walls, visit Lokrum island, or relax by the sea.</p>
+            </div>
+          </div>
+          <div class="timeline-item animate">
+            <div class="timeline-time">4:00 PM</div>
+            <div class="timeline-content">
+              <h3>Boat Trip</h3>
+              <p>Group boat trip along the coast with drinks and swimming. Departs from the Old Port.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Day 3 — Wedding -->
+        <h2 class="section-title animate">Day 3 — Saturday, September 12</h2>
+        <div class="timeline">
+          <div class="timeline-item animate">
+            <div class="timeline-time">4:00 PM</div>
+            <div class="timeline-content">
+              <h3>Ceremony</h3>
+              <p>Join us as we say "I do" at a stunning cliffside venue overlooking the Adriatic. Dress code: cocktail attire.</p>
+            </div>
+          </div>
+          <div class="timeline-item animate">
+            <div class="timeline-time">5:30 PM</div>
+            <div class="timeline-content">
+              <h3>Cocktail Hour</h3>
+              <p>Drinks and canap&eacute;s on the terrace as the sun begins to set.</p>
+            </div>
+          </div>
+          <div class="timeline-item animate">
+            <div class="timeline-time">7:00 PM</div>
+            <div class="timeline-content">
+              <h3>Reception & Dinner</h3>
+              <p>Dinner, toasts, and dancing under the stars. Let's celebrate!</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Day 4 -->
+        <h2 class="section-title animate">Day 4 — Sunday, September 13</h2>
+        <div class="timeline">
+          <div class="timeline-item animate">
+            <div class="timeline-time">11:00 AM</div>
+            <div class="timeline-content">
+              <h3>Farewell Brunch</h3>
+              <p>A relaxed goodbye over coffee and pastries. No rush — stay and chat.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Travel Info -->
+        <h2 class="section-title animate">Getting There</h2>
+        <div class="info-card animate">
+          <h3>Flights</h3>
+          <p>Fly into <strong>Dubrovnik Airport (DBV)</strong>. Direct flights are available from many European cities. Budget airlines like EasyJet and Ryanair often have good deals.</p>
+        </div>
+        <div class="info-card animate">
+          <h3>Airport Transfer</h3>
+          <p>The airport is about 20 minutes from the Old Town. We'll arrange shared shuttles — more details to come.</p>
+        </div>
+        <div class="info-card animate">
+          <h3>Accommodation</h3>
+          <p>Check the <strong>Map</strong> tab to see where everyone is staying. We've blocked rooms at a few places nearby — reach out if you need help booking.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Map Tab -->
+    <section id="map" class="tab-content">
+      <div id="map-container"></div>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/map.js"></script>
+</body>
+</html>

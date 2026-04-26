@@ -1,0 +1,253 @@
+/* ── Reset & Base ── */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --color-bg: #faf9f6;
+  --color-text: #2c2c2c;
+  --color-muted: #6b6b6b;
+  --color-accent: #4a7c6f;
+  --color-accent-light: #e8f0ed;
+  --color-card: #ffffff;
+  --color-border: #e2e0db;
+  --font-serif: 'Georgia', 'Times New Roman', serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --nav-height: 52px;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Tab Navigation ── */
+.tab-nav {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display: flex;
+  background: var(--color-card);
+  border-bottom: 1px solid var(--color-border);
+  height: var(--nav-height);
+}
+
+.tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s;
+}
+
+.tab-btn.active {
+  color: var(--color-accent);
+}
+
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 20%;
+  width: 60%;
+  height: 3px;
+  background: var(--color-accent);
+  border-radius: 3px 3px 0 0;
+}
+
+/* ── Tab Content ── */
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* ── Hero ── */
+.hero {
+  position: relative;
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #3a6b5e 0%, #2c5364 50%, #1b3a4b 100%);
+  overflow: hidden;
+}
+
+.hero-overlay {
+  text-align: center;
+  padding: 2rem 1.5rem;
+  color: #fff;
+}
+
+.hero h1 {
+  font-family: var(--font-serif);
+  font-size: 3rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.75rem;
+}
+
+.hero-date {
+  font-size: 1.2rem;
+  font-weight: 300;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+  opacity: 0.9;
+}
+
+.hero-location {
+  font-size: 1rem;
+  opacity: 0.8;
+  letter-spacing: 0.05em;
+}
+
+/* ── Container ── */
+.container {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+
+/* ── Section Titles ── */
+.section-title {
+  font-family: var(--font-serif);
+  font-size: 1.4rem;
+  font-weight: 400;
+  color: var(--color-accent);
+  margin-top: 3rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* ── Timeline ── */
+.timeline {
+  position: relative;
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  width: 2px;
+  background: var(--color-border);
+}
+
+.timeline-item {
+  position: relative;
+  margin-bottom: 1.75rem;
+}
+
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: -1.5rem;
+  top: 0.45rem;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  transform: translateX(-4px);
+}
+
+.timeline-time {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+  margin-bottom: 0.25rem;
+}
+
+.timeline-content h3 {
+  font-size: 1.1rem;
+  margin-bottom: 0.25rem;
+}
+
+.timeline-content p {
+  color: var(--color-muted);
+  font-size: 0.95rem;
+}
+
+/* ── Info Cards ── */
+.info-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.info-card h3 {
+  font-size: 1rem;
+  margin-bottom: 0.4rem;
+  color: var(--color-accent);
+}
+
+.info-card p {
+  font-size: 0.95rem;
+  color: var(--color-muted);
+}
+
+/* ── Scroll Animations ── */
+.animate {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.animate.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Stagger children slightly */
+.timeline-item.animate:nth-child(2) { transition-delay: 0.1s; }
+.timeline-item.animate:nth-child(3) { transition-delay: 0.2s; }
+
+/* ── Map ── */
+#map-container {
+  width: 100%;
+  height: calc(100vh - var(--nav-height));
+  height: calc(100dvh - var(--nav-height));
+}
+
+/* ── Responsive — larger screens ── */
+@media (min-width: 768px) {
+  .hero h1 {
+    font-size: 4rem;
+  }
+
+  .hero-date {
+    font-size: 1.4rem;
+  }
+
+  .container {
+    padding: 3rem 2rem 5rem;
+  }
+
+  .section-title {
+    font-size: 1.6rem;
+  }
+}

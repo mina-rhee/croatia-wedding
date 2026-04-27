@@ -95,7 +95,7 @@ body {
 .map-panel {
   flex-shrink: 0;
   height: var(--map-height);
-  padding: 0.75rem 1rem 0;
+  padding: 0;
   background: var(--color-card);
   display: flex;
   flex-direction: column;
@@ -103,6 +103,8 @@ body {
 
 #map-container {
   width: 100%;
+  max-width: 700px;
+  margin: 0 auto;
   flex: 1;
   min-height: 0;
   border: 1px solid var(--color-border);
@@ -163,7 +165,7 @@ body {
 
 .event-time {
   font-size: 0.72rem;
-  font-weight: 650;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-muted);

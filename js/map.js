@@ -38,10 +38,10 @@ function makeCircleIcon() {
 const ACTIVE_ICON  = () => makePinIcon();
 const INACTIVE_ICON = () => makeCircleIcon();
 
-const TARGET_ZOOM = 15;
+const TARGET_ZOOM = 13;
 const MIN_FLIGHT_DURATION = 2.075;
 const MAX_FLIGHT_DURATION = 5.5;
-const FLIGHT_PIXELS_PER_SECOND = 2850;
+const FLIGHT_PIXELS_PER_SECOND = 712;
 
 // ── Map Setup ──
 const map = L.map('map-container', {
@@ -102,12 +102,14 @@ function birdScale() {
   const zoom = map.getZoom();
   const zoomDelta = Math.max(0, TARGET_ZOOM - zoom);
   const scale = Math.min(1.35, 1 + zoomDelta * 0.28);
-  mapBird.style.transform = `translate(-50%, -55%) scale(${scale})`;
-  mapBird.classList.toggle('bird-flapping', zoomDelta > 0.3);
+  const flip = Math.abs(currentBearing) > 90;
+  mapBird.style.transform = `translate(-50%, -55%) scale(${flip ? -scale : scale}, ${scale})`;
+  mapBird.classList.toggle('bird-flapping', zoomDelta > 0.1);
 }
 
 map.on('zoom', birdScale);
 
+let currentBearing = 0;
 let birdShowTimer = null;
 let birdHideTimer = null;
 
@@ -122,12 +124,66 @@ map.on('moveend', () => {
   hideBird();
 });
 
+// ── Tile Preloading ──
+function preloadMapTiles() {
+  const TILE_URL   = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png';
+  const SUBDOMAINS = ['a', 'b', 'c', 'd'];
+  const BUFFER     = 0.1;
+
+  const SW_LAT = 43.0214 - BUFFER;
+  const SW_LNG = 16.1716 - BUFFER;
+  const NE_LAT = 43.5389 + BUFFER;
+  const NE_LNG = 16.4920 + BUFFER;
+
+  function latLngToTile(lat, lng, z) {
+    const n      = Math.pow(2, z);
+    const x      = Math.floor((lng + 180) / 360 * n);
+    const latRad = lat * Math.PI / 180;
+    const y      = Math.floor(
+      (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n
+    );
+    return { x, y };
+  }
+
+  // Hold refs so the browser doesn't abort in-flight requests before they complete
+  const pending = new Set();
+
+  function fetchTile(z, x, y) {
+    const s   = SUBDOMAINS[(x + y) % 4];
+    const url = TILE_URL
+      .replace('{s}', s)
+      .replace('{z}', z)
+      .replace('{x}', x)
+      .replace('{y}', y);
+    const img = new Image();
+    pending.add(img);
+    img.onload = img.onerror = () => pending.delete(img);
+    img.src = url;
+  }
+
+  for (let z = 7; z <= 13; z++) {
+    const sw = latLngToTile(SW_LAT, SW_LNG, z);
+    const ne = latLngToTile(NE_LAT, NE_LNG, z);
+    const xMin = Math.min(sw.x, ne.x), xMax = Math.max(sw.x, ne.x);
+    const yMin = Math.min(sw.y, ne.y), yMax = Math.max(sw.y, ne.y);
+    for (let x = xMin; x <= xMax; x++) {
+      for (let y = yMin; y <= yMax; y++) {
+        fetchTile(z, x, y);
+      }
+    }
+  }
+}
+
 // ── Set initial view ──
-const preLocs = locations.filter(l => l.day === 'pre');
-const initBounds = L.latLngBounds(preLocs.map(l => [l.lat, l.lng]));
-map.fitBounds(initBounds, { padding: [50, 50], maxZoom: 15 });
+map.setView([locations[0].lat, locations[0].lng], TARGET_ZOOM);
 requestAnimationFrame(() => map.invalidateSize());
 window.addEventListener('resize', () => map.invalidateSize());
+
+if ('requestIdleCallback' in window) {
+  requestIdleCallback(preloadMapTiles, { timeout: 4000 });
+} else {
+  setTimeout(preloadMapTiles, 200);
+}
 
 // ── Highlight the marker for the scrolled-to event card ──
 let currentMarkerName = 'Split Airport';
@@ -162,6 +218,10 @@ function highlightMarker(locationName) {
   });
 
   if (source) {
+    const startPx = map.project([source.lat, source.lng]);
+    const endPx   = map.project([target.lat, target.lng]);
+    currentBearing = Math.atan2(endPx.y - startPx.y, endPx.x - startPx.x) * 180 / Math.PI;
+
     const duration = calculateFlightDuration(source, target);
     map.flyTo([target.lat, target.lng], TARGET_ZOOM, { duration });
 

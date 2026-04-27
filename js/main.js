@@ -1,14 +1,80 @@
 // ── Elements ──
 const dayButtons = document.querySelectorAll('.day-btn');
-const eventCards = document.querySelectorAll('.event-card');
+const eventCards = [...document.querySelectorAll('.event-card')];
 const eventsScroll = document.querySelector('.events-scroll');
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+if (window.gsap && window.Observer) {
+  gsap.registerPlugin(Observer);
+}
+
+// ── Motion constants ──
+const EDGE_THRESHOLD = 135;
+const EDGE_RESET_DELAY = 260;
+const TRANSITION_DURATION = prefersReducedMotion ? 0.22 : 2.04;
+const DIRECT_TRANSITION_DURATION = prefersReducedMotion ? 0.18 : 1.36;
+const INPUT_COOLDOWN = prefersReducedMotion ? 80 : 90;
+const CARD_OFFSET = prefersReducedMotion ? 0 : 40;
+const CARD_EXIT_OFFSET = prefersReducedMotion ? 0 : 18;
+const EDGE_EPSILON = 2;
+const MAX_EDGE_DELTA = 90;
+const EDGE_COMMIT_PROGRESS = 0.58;
 
 // ── State ──
 let currentIndex = 0;
-let isSnapping = false;
-let snapTween = null;
-let suppressScrollUntil = 0;
+let isTransitioning = false;
+let cooldownUntil = 0;
+let transitionTween = null;
+let transitionUnlockCall = null;
+let edgeTween = null;
+let edgeResetTimer = null;
+let touchLastY = 0;
+let edgeState = {
+  direction: 0,
+  progress: 0,
+  targetIndex: -1,
+};
 
+// ── Card setup ──
+eventCards.forEach((card, index) => {
+  if (!card.querySelector(':scope > .event-card-content')) {
+    const content = document.createElement('div');
+    content.className = 'event-card-content';
+    while (card.firstChild) content.appendChild(card.firstChild);
+    card.appendChild(content);
+  }
+
+  card.dataset.index = String(index);
+  card.setAttribute('aria-hidden', index === 0 ? 'false' : 'true');
+});
+
+const eventContents = eventCards.map(card => card.querySelector('.event-card-content'));
+
+function refreshScrollableContent() {
+  eventContents.forEach(content => {
+    content.classList.toggle('is-scrollable', content.scrollHeight > content.clientHeight + EDGE_EPSILON);
+  });
+}
+
+function setInitialCardState() {
+  gsap.set(eventCards, {
+    autoAlpha: 0,
+    y: CARD_OFFSET,
+    zIndex: 1,
+    pointerEvents: 'none',
+  });
+
+  gsap.set(eventCards[0], {
+    autoAlpha: 1,
+    y: 0,
+    zIndex: 3,
+    pointerEvents: 'auto',
+  });
+
+  eventCards[0].classList.add('active', 'visible');
+}
+
+// ── UI sync ──
 function updateDay(index) {
   const card = eventCards[index];
   const newDay = card.dataset.day;
@@ -19,178 +85,288 @@ function updateDay(index) {
   }
 }
 
-function snapToCard(index) {
-  if (index < 0 || index >= eventCards.length || isSnapping) return;
-  isSnapping = true;
-  currentIndex = index;
-  updateDay(index);
+function closeMapPopup() {
+  if (typeof map !== 'undefined') map.closePopup();
+}
 
-  // Show the card immediately so it's visible during the scroll animation.
-  // The CSS entrance transition is suppressed here; free-scroll triggers it naturally.
-  const card = eventCards[index];
-  card.style.transition = 'none';
-  card.classList.add('visible');
-  card.offsetHeight;
-  card.style.transition = '';
+// ── Inner scroll boundary helpers ──
+function maxScrollFor(content) {
+  return Math.max(0, content.scrollHeight - content.clientHeight);
+}
 
-  const targetY = card.offsetTop;
-  if (snapTween) snapTween.kill();
-  snapTween = gsap.to(eventsScroll, {
-    scrollTop: targetY,
-    duration: 0.72,
-    ease: 'power3.out',
-    onComplete: () => {
-      eventsScroll.scrollTop = targetY;
-      suppressScrollUntil = performance.now() + 250;
-      isSnapping = false;
-      snapTween = null;
-      boundaryAccum = 0;
-    }
+function isAtContentBoundary(direction, index = currentIndex) {
+  const content = eventContents[index];
+  const maxScroll = maxScrollFor(content);
+
+  if (maxScroll <= EDGE_EPSILON) return true;
+  if (direction > 0) return content.scrollTop >= maxScroll - EDGE_EPSILON;
+  return content.scrollTop <= EDGE_EPSILON;
+}
+
+function setTargetContentStart(index, direction, fromDirectJump = false) {
+  const content = eventContents[index];
+  if (fromDirectJump || direction >= 0) {
+    content.scrollTop = 0;
+    return;
+  }
+
+  content.scrollTop = maxScrollFor(content);
+}
+
+// ── Edge preview ──
+function resetEdgeState(animate = true) {
+  clearTimeout(edgeResetTimer);
+
+  const { targetIndex } = edgeState;
+  edgeState = { direction: 0, progress: 0, targetIndex: -1 };
+
+  if (edgeTween) edgeTween.kill();
+  if (targetIndex === -1 || targetIndex === currentIndex) return;
+
+  const targetCard = eventCards[targetIndex];
+  const currentCard = eventCards[currentIndex];
+  const currentContent = eventContents[currentIndex];
+
+  if (!animate || prefersReducedMotion) {
+    gsap.set(targetCard, { autoAlpha: 0, y: CARD_OFFSET, zIndex: 1, pointerEvents: 'none' });
+    gsap.set(currentCard, { autoAlpha: 1, y: 0, zIndex: 3, pointerEvents: 'auto' });
+    gsap.set(currentContent, { autoAlpha: 1 });
+    return;
+  }
+
+  edgeTween = gsap.timeline({
+    defaults: { duration: 0.22, ease: 'power2.out' },
+    onComplete: () => { edgeTween = null; },
+  });
+  edgeTween.to(currentCard, { autoAlpha: 1, y: 0 }, 0);
+  edgeTween.to(currentContent, { autoAlpha: 1 }, 0);
+  edgeTween.to(targetCard, {
+    autoAlpha: 0,
+    y: CARD_OFFSET * Math.sign(targetIndex - currentIndex),
+    pointerEvents: 'none',
+    zIndex: 1,
+  }, 0);
+}
+
+function updateEdgePreview(direction, amount) {
+  const targetIndex = currentIndex + direction;
+  if (targetIndex < 0 || targetIndex >= eventCards.length) return false;
+
+  if (edgeState.direction !== direction || edgeState.targetIndex !== targetIndex) {
+    resetEdgeState(false);
+    edgeState = { direction, progress: 0, targetIndex };
+    gsap.set(eventCards[targetIndex], {
+      autoAlpha: 0,
+      y: direction * CARD_OFFSET,
+      zIndex: 4,
+      pointerEvents: 'none',
+    });
+    gsap.set(eventCards[currentIndex], { autoAlpha: 1, zIndex: 3 });
+    gsap.set(eventContents[currentIndex], { autoAlpha: 0 });
+  }
+
+  edgeState.progress = Math.min(1, edgeState.progress + amount / EDGE_THRESHOLD);
+  const eased = gsap.parseEase('power2.out')(edgeState.progress);
+  const preview = Math.min(edgeState.progress / EDGE_COMMIT_PROGRESS, 1);
+  const currentCard = eventCards[currentIndex];
+  const targetCard = eventCards[targetIndex];
+
+  gsap.set(currentCard, {
+    autoAlpha: 1,
+    y: -direction * CARD_EXIT_OFFSET * eased,
+  });
+
+  gsap.set(targetCard, {
+    autoAlpha: 0.08 + preview * 0.48,
+    y: direction * CARD_OFFSET * (1 - preview * 0.86),
+  });
+
+  clearTimeout(edgeResetTimer);
+  edgeResetTimer = setTimeout(() => resetEdgeState(true), EDGE_RESET_DELAY);
+
+  if (edgeState.progress >= EDGE_COMMIT_PROGRESS) {
+    transitionToCard(targetIndex, direction, { fromEdge: true });
+  }
+
+  return true;
+}
+
+// ── Card transition ──
+function cleanupCards(activeIndex) {
+  eventCards.forEach((card, index) => {
+    const isActive = index === activeIndex;
+    card.classList.toggle('active', isActive);
+    card.classList.toggle('visible', isActive);
+    card.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+    gsap.set(card, {
+      autoAlpha: isActive ? 1 : 0,
+      y: isActive ? 0 : CARD_OFFSET,
+      zIndex: isActive ? 3 : 1,
+      pointerEvents: isActive ? 'auto' : 'none',
+    });
+    gsap.set(eventContents[index], { autoAlpha: 1 });
   });
 }
 
-// ── Check if current card is at its scroll boundary ──
-function atCardBoundary(direction) {
-  const card = eventCards[currentIndex];
-  const cardTop = card.offsetTop;
-  const cardHeight = card.offsetHeight;
-  const scrollTop = eventsScroll.scrollTop;
-  const viewHeight = eventsScroll.clientHeight;
-
-  if (direction > 0) {
-    return scrollTop + viewHeight >= cardTop + cardHeight - 2;
-  } else {
-    return scrollTop <= cardTop + 2;
-  }
-}
-
-// ── Wheel: native scroll within card, snap at boundaries ──
-let boundaryAccum = 0;
-const BOUNDARY_THRESHOLD = 130;
-const FRICTION_ZONE = 40;
-let boundaryTimer;
-
-function scrollFriction(direction) {
-  const card = eventCards[currentIndex];
-  const cardTop = card.offsetTop;
-  const cardHeight = card.offsetHeight;
-  const scrollTop = eventsScroll.scrollTop;
-  const viewHeight = eventsScroll.clientHeight;
-
-  const distFromEdge = direction > 0
-    ? (cardTop + cardHeight) - (scrollTop + viewHeight)
-    : scrollTop - cardTop;
-
-  if (distFromEdge >= FRICTION_ZONE) return 1;
-  if (distFromEdge <= 0) return 0;
-  return distFromEdge / FRICTION_ZONE;
-}
-
-eventsScroll.addEventListener('wheel', (e) => {
-  if (isSnapping || snapTween?.isActive() || performance.now() < suppressScrollUntil) {
-    e.preventDefault();
+function transitionToCard(index, direction, options = {}) {
+  if (index < 0 || index >= eventCards.length || index === currentIndex) {
+    resetEdgeState(true);
     return;
   }
 
-  const direction = e.deltaY > 0 ? 1 : -1;
+  const fromIndex = currentIndex;
+  const fromCard = eventCards[fromIndex];
+  const toCard = eventCards[index];
+  const fromContent = eventContents[fromIndex];
+  const fromDirectJump = Boolean(options.direct);
+  const duration = fromDirectJump ? DIRECT_TRANSITION_DURATION : TRANSITION_DURATION;
+  const resolvedDirection = direction || (index > fromIndex ? 1 : -1);
 
-  if (atCardBoundary(direction)) {
-    e.preventDefault();
-    boundaryAccum += Math.abs(e.deltaY);
+  clearTimeout(edgeResetTimer);
+  transitionUnlockCall?.kill();
+  if (edgeTween) edgeTween.kill();
+  if (transitionTween) transitionTween.kill();
 
-    if (boundaryAccum >= BOUNDARY_THRESHOLD) {
-      boundaryAccum = 0;
-      snapToCard(currentIndex + direction);
-    }
+  edgeState = { direction: 0, progress: 0, targetIndex: -1 };
+  isTransitioning = true;
+  closeMapPopup();
+  setTargetContentStart(index, resolvedDirection, fromDirectJump);
+  updateDay(index);
 
-    clearTimeout(boundaryTimer);
-    boundaryTimer = setTimeout(() => { boundaryAccum = 0; }, 350);
-  } else {
-    const friction = scrollFriction(direction);
-    if (friction < 1) {
-      e.preventDefault();
-      eventsScroll.scrollTop += e.deltaY * friction;
-    }
-    boundaryAccum = 0;
+  gsap.set(toCard, {
+    autoAlpha: options.fromEdge ? gsap.getProperty(toCard, 'autoAlpha') : 0,
+    y: options.fromEdge ? gsap.getProperty(toCard, 'y') : resolvedDirection * CARD_OFFSET,
+    zIndex: 4,
+    pointerEvents: 'none',
+  });
+  gsap.set(fromCard, { zIndex: 3, pointerEvents: 'none' });
+  gsap.set(fromContent, { autoAlpha: 0 });
+
+  let didUnlock = false;
+  const unlockTransition = () => {
+    if (didUnlock) return;
+    didUnlock = true;
+    currentIndex = index;
+    cleanupCards(index);
+    refreshScrollableContent();
+    isTransitioning = false;
+    transitionTween = null;
+    transitionUnlockCall = null;
+    cooldownUntil = performance.now() + INPUT_COOLDOWN;
+  };
+
+  transitionTween = gsap.timeline({
+    defaults: { duration, ease: prefersReducedMotion ? 'power1.out' : 'power3.out' },
+    onComplete: unlockTransition,
+  });
+
+  transitionUnlockCall = gsap.delayedCall(duration * 0.72, unlockTransition);
+
+  transitionTween.to(fromCard, {
+    autoAlpha: 0,
+    y: -resolvedDirection * CARD_EXIT_OFFSET,
+  }, 0);
+
+  transitionTween.to(toCard, {
+    autoAlpha: 1,
+    y: 0,
+  }, 0);
+}
+
+// Public integration used by map markers and day nav.
+function snapToCard(index) {
+  if (index < 0 || index >= eventCards.length || index === currentIndex) return;
+  transitionToCard(index, index > currentIndex ? 1 : -1, { direct: true });
+}
+
+function handleDeckInput(deltaY, event) {
+  if (!deltaY) return false;
+
+  if (isTransitioning || performance.now() < cooldownUntil) {
+    event.preventDefault?.();
+    return true;
   }
-}, { passive: false });
 
-// ── Touch: native scroll within card, snap at boundaries ──
-let touchStartY = 0;
-let touchLastY = 0;
+  closeMapPopup();
 
-eventsScroll.addEventListener('touchstart', (e) => {
-  touchStartY = e.touches[0].clientY;
-  touchLastY = touchStartY;
-}, { passive: true });
-
-eventsScroll.addEventListener('touchmove', (e) => {
-  touchLastY = e.touches[0].clientY;
-}, { passive: true });
-
-eventsScroll.addEventListener('touchend', () => {
-  if (isSnapping) return;
-  const delta = touchStartY - touchLastY;
-  if (Math.abs(delta) < 75) return;
-  const direction = delta > 0 ? 1 : -1;
-  if (atCardBoundary(direction)) {
-    snapToCard(currentIndex + direction);
+  const direction = deltaY > 0 ? 1 : -1;
+  if (!isAtContentBoundary(direction)) {
+    resetEdgeState(true);
+    return false;
   }
-}, { passive: true });
 
-// ── Track current card during free scroll ──
-eventsScroll.addEventListener('scroll', () => {
-  if (typeof map !== 'undefined') map.closePopup();
+  const consumed = updateEdgePreview(direction, Math.min(Math.abs(deltaY), MAX_EDGE_DELTA));
+  if (consumed) event.preventDefault?.();
+  return consumed;
+}
 
-  if (isSnapping || performance.now() < suppressScrollUntil) {
-    const targetY = eventCards[currentIndex].offsetTop;
-    if (Math.abs(eventsScroll.scrollTop - targetY) > 1) {
-      eventsScroll.scrollTop = targetY;
+function createObserverInput() {
+  if (!window.Observer) return false;
+
+  Observer.create({
+    target: eventsScroll,
+    type: 'wheel,touch,pointer',
+    lockAxis: true,
+    tolerance: 8,
+    preventDefault: false,
+    onWheel: self => {
+      const event = self.event;
+      handleDeckInput(event.deltaY, event);
+    },
+    onUp: self => {
+      if (self.event?.type === 'wheel') return;
+      handleDeckInput(Math.max(24, Math.abs(self.deltaY)), self.event);
+    },
+    onDown: self => {
+      if (self.event?.type === 'wheel') return;
+      handleDeckInput(-Math.max(24, Math.abs(self.deltaY)), self.event);
+    },
+    onPress: () => { touchLastY = 0; },
+  });
+
+  return true;
+}
+
+function createFallbackInput() {
+  eventsScroll.addEventListener('wheel', event => {
+    handleDeckInput(event.deltaY, event);
+  }, { passive: false });
+
+  eventsScroll.addEventListener('touchstart', event => {
+    touchLastY = event.touches[0].clientY;
+  }, { passive: true });
+
+  eventsScroll.addEventListener('touchmove', event => {
+    const nextY = event.touches[0].clientY;
+    const deltaY = touchLastY - nextY;
+    touchLastY = nextY;
+    handleDeckInput(deltaY, event);
+  }, { passive: false });
+}
+
+eventContents.forEach(content => {
+  content.addEventListener('scroll', () => {
+    if (edgeState.progress > 0 && !isAtContentBoundary(edgeState.direction)) {
+      resetEdgeState(true);
     }
-    return;
-  }
-  const scrollTop = eventsScroll.scrollTop;
-  const viewHeight = eventsScroll.clientHeight;
+  }, { passive: true });
+});
 
-  for (let i = eventCards.length - 1; i >= 0; i--) {
-    if (scrollTop >= eventCards[i].offsetTop - viewHeight * 0.3) {
-      if (i !== currentIndex) {
-        currentIndex = i;
-        eventCards[i].classList.add('visible');
-        updateDay(i);
-      }
-      break;
-    }
-  }
-}, { passive: true });
-
-// ── Day Navigation Click ──
 dayButtons.forEach(btn => {
   btn.addEventListener('click', () => {
     const targetDay = btn.dataset.day;
-    const index = [...eventCards].findIndex(c => c.dataset.day === targetDay);
-    if (index === -1 || index === currentIndex) return;
-    if (snapTween) snapTween.kill();
-    isSnapping = true;
-    currentIndex = index;
-    updateDay(index);
-
-    const tl = gsap.timeline({
-      onComplete: () => {
-        isSnapping = false;
-        snapTween = null;
-        boundaryAccum = 0;
-      }
-    });
-    tl.to(eventsScroll, { opacity: 0, duration: 0.18, ease: 'power1.in' });
-    tl.add(() => {
-      eventsScroll.scrollTop = eventCards[index].offsetTop;
-      eventCards[index].classList.add('visible');
-    });
-    tl.to(eventsScroll, { opacity: 1, duration: 0.28, ease: 'power1.out' });
-    snapTween = tl;
+    const index = eventCards.findIndex(c => c.dataset.day === targetDay);
+    snapToCard(index);
   });
 });
 
-// ── Init ──
-eventCards[0].classList.add('visible');
+window.addEventListener('resize', () => {
+  refreshScrollableContent();
+  cleanupCards(currentIndex);
+});
+
+document.fonts?.ready?.then(refreshScrollableContent);
+
+setInitialCardState();
+refreshScrollableContent();
+createObserverInput() || createFallbackInput();

@@ -11,8 +11,8 @@ if (window.gsap && window.Observer) {
 // ── Motion constants ──
 const EDGE_THRESHOLD = 135;
 const EDGE_RESET_DELAY = 260;
-const TRANSITION_DURATION = prefersReducedMotion ? 0.22 : 2.04;
-const DIRECT_TRANSITION_DURATION = prefersReducedMotion ? 0.18 : 1.36;
+const TRANSITION_DURATION = prefersReducedMotion ? 0.22 : 0.7;
+const DIRECT_TRANSITION_DURATION = prefersReducedMotion ? 0.18 : 0.55;
 const INPUT_COOLDOWN = prefersReducedMotion ? 80 : 90;
 const CARD_OFFSET = prefersReducedMotion ? 0 : 40;
 const CARD_EXIT_OFFSET = prefersReducedMotion ? 0 : 18;
@@ -21,11 +21,10 @@ const MAX_EDGE_DELTA = 90;
 const EDGE_COMMIT_PROGRESS = 0.58;
 
 // ── State ──
+const WHEEL_COOLDOWN_MS = 600;
 let currentIndex = 0;
-let isTransitioning = false;
-let cooldownUntil = 0;
 let transitionTween = null;
-let transitionUnlockCall = null;
+let wheelLockedUntil = 0;
 let edgeTween = null;
 let edgeResetTimer = null;
 let touchLastY = 0;
@@ -75,11 +74,38 @@ function setInitialCardState() {
 }
 
 // ── UI sync ──
+const dayPips = new Map();
+
+function buildDayPips() {
+  dayButtons.forEach(btn => {
+    const day = btn.dataset.day;
+    const cardsForDay = eventCards.filter(c => c.dataset.day === day);
+    if (cardsForDay.length <= 1) return;
+
+    const pips = document.createElement('span');
+    pips.className = 'day-pips';
+    cardsForDay.forEach(() => {
+      const pip = document.createElement('span');
+      pip.className = 'day-pip';
+      pips.appendChild(pip);
+    });
+    btn.appendChild(pips);
+    dayPips.set(day, [...pips.children]);
+  });
+}
+
 function updateDay(index) {
   const card = eventCards[index];
   const newDay = card.dataset.day;
   const locationName = card.dataset.location || '';
   dayButtons.forEach(b => b.classList.toggle('active', b.dataset.day === newDay));
+
+  dayPips.forEach((pips, day) => {
+    const cardsForDay = eventCards.filter(c => c.dataset.day === day);
+    const activePos = cardsForDay.indexOf(card);
+    pips.forEach((pip, i) => pip.classList.toggle('active', i === activePos));
+  });
+
   if (typeof highlightMarker === 'function') {
     highlightMarker(locationName);
   }
@@ -223,12 +249,11 @@ function transitionToCard(index, direction, options = {}) {
   const resolvedDirection = direction || (index > fromIndex ? 1 : -1);
 
   clearTimeout(edgeResetTimer);
-  transitionUnlockCall?.kill();
   if (edgeTween) edgeTween.kill();
   if (transitionTween) transitionTween.kill();
 
+  currentIndex = index;
   edgeState = { direction: 0, progress: 0, targetIndex: -1 };
-  isTransitioning = true;
   closeMapPopup();
   setTargetContentStart(index, resolvedDirection, fromDirectJump);
   updateDay(index);
@@ -242,25 +267,16 @@ function transitionToCard(index, direction, options = {}) {
   gsap.set(fromCard, { zIndex: 3, pointerEvents: 'none' });
   gsap.set(fromContent, { autoAlpha: 0 });
 
-  let didUnlock = false;
-  const unlockTransition = () => {
-    if (didUnlock) return;
-    didUnlock = true;
-    currentIndex = index;
-    cleanupCards(index);
+  const onTransitionComplete = () => {
+    cleanupCards(currentIndex);
     refreshScrollableContent();
-    isTransitioning = false;
     transitionTween = null;
-    transitionUnlockCall = null;
-    cooldownUntil = performance.now() + INPUT_COOLDOWN;
   };
 
   transitionTween = gsap.timeline({
     defaults: { duration, ease: prefersReducedMotion ? 'power1.out' : 'power3.out' },
-    onComplete: unlockTransition,
+    onComplete: onTransitionComplete,
   });
-
-  transitionUnlockCall = gsap.delayedCall(duration * 0.72, unlockTransition);
 
   transitionTween.to(fromCard, {
     autoAlpha: 0,
@@ -282,11 +298,6 @@ function snapToCard(index) {
 function handleDeckInput(deltaY, event) {
   if (!deltaY) return false;
 
-  if (isTransitioning || performance.now() < cooldownUntil) {
-    event.preventDefault?.();
-    return true;
-  }
-
   closeMapPopup();
 
   const direction = deltaY > 0 ? 1 : -1;
@@ -300,19 +311,37 @@ function handleDeckInput(deltaY, event) {
   return consumed;
 }
 
+// ── Wheel gesture handling ──
+// Fixed cooldown after each fire — predictable, not tied to animation.
+function handleWheel(event) {
+  event.preventDefault();
+  const now = performance.now();
+  if (now < wheelLockedUntil) return;
+  if (Math.abs(event.deltaY) < 4) return;
+
+  const direction = event.deltaY > 0 ? 1 : -1;
+  if (!isAtContentBoundary(direction)) {
+    resetEdgeState(true);
+    return;
+  }
+
+  const targetIndex = currentIndex + direction;
+  if (targetIndex < 0 || targetIndex >= eventCards.length) return;
+
+  wheelLockedUntil = now + WHEEL_COOLDOWN_MS;
+  closeMapPopup();
+  transitionToCard(targetIndex, direction);
+}
+
 function createObserverInput() {
   if (!window.Observer) return false;
 
   Observer.create({
     target: eventsScroll,
-    type: 'wheel,touch,pointer',
+    type: 'touch,pointer',
     lockAxis: true,
     tolerance: 8,
     preventDefault: false,
-    onWheel: self => {
-      const event = self.event;
-      handleDeckInput(event.deltaY, event);
-    },
     onUp: self => {
       if (self.event?.type === 'wheel') return;
       handleDeckInput(Math.max(24, Math.abs(self.deltaY)), self.event);
@@ -328,10 +357,6 @@ function createObserverInput() {
 }
 
 function createFallbackInput() {
-  eventsScroll.addEventListener('wheel', event => {
-    handleDeckInput(event.deltaY, event);
-  }, { passive: false });
-
   eventsScroll.addEventListener('touchstart', event => {
     touchLastY = event.touches[0].clientY;
   }, { passive: true });
@@ -367,6 +392,9 @@ window.addEventListener('resize', () => {
 
 document.fonts?.ready?.then(refreshScrollableContent);
 
+buildDayPips();
 setInitialCardState();
+updateDay(currentIndex);
 refreshScrollableContent();
 createObserverInput() || createFallbackInput();
+eventsScroll.addEventListener('wheel', handleWheel, { passive: false });

@@ -103,7 +103,10 @@ function birdScale() {
   const zoomDelta = Math.max(0, TARGET_ZOOM - zoom);
   const scale = Math.min(1.35, 1 + zoomDelta * 0.28);
   const flip = Math.abs(currentBearing) > 90;
-  mapBird.style.transform = `translate(-50%, -55%) scale(${flip ? -scale : scale}, ${scale})`;
+  // When flipped, scaleX(-1) is applied after rotate, so we need rotate(180 - bearing)
+  // to land on the actual heading.
+  const rotation = flip ? 180 - currentBearing : currentBearing;
+  mapBird.style.transform = `translate(-50%, -55%) scale(${flip ? -scale : scale}, ${scale}) rotate(${rotation}deg)`;
   mapBird.classList.toggle('bird-flapping', zoomDelta > 0.1);
 }
 

@@ -16,8 +16,8 @@
   --color-border: #cdd2cc;
   --font-serif: 'Cormorant', 'Palatino Linotype', Palatino, Georgia, serif;
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
-  --nav-height: 48px;
   --map-height: 34vh;
+  --timeline-width: 76px;
 }
 
 html, body {
@@ -54,63 +54,82 @@ body {
   color: var(--color-muted);
 }
 
-/* ── Day Navigation ── */
-.day-nav {
+/* ── Event Timeline (right rail) ── */
+.event-timeline {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--timeline-width);
   display: flex;
-  align-items: center;
-  justify-content: space-evenly;
-  padding: 0;
-  background: var(--color-card);
-  border-bottom: 1px solid var(--color-border);
-  height: var(--nav-height);
-  flex-shrink: 0;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1rem 0.85rem 1rem 0;
+  z-index: 5;
+  pointer-events: none;
 }
 
-.day-btn {
-  font-family: var(--font-sans);
-  flex: 0 0 auto;
+.timeline-item {
+  pointer-events: auto;
   background: none;
   border: none;
-  border-bottom: 1.5px solid transparent;
-  font-size: 0.75rem;
+  cursor: pointer;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 9px;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.18rem 0;
+  font-family: var(--font-sans);
+  font-size: 0.68rem;
   font-weight: 400;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--color-muted);
-  padding: 6px 10px;
-  padding-bottom: 5px;
-  border-radius: 0;
-  cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
-  position: relative;
+  transition: color 0.2s;
 }
 
-.day-btn.active {
+.timeline-item.starts-day {
+  margin-top: 0.55rem;
+}
+
+.timeline-label {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.timeline-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-card);
+  border: 1.5px solid var(--color-border);
+  box-sizing: border-box;
+  position: relative;
+  z-index: 2;
+  transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.timeline-item.has-next-in-day::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  height: 100%;
+  right: 4px;
+  width: 1px;
+  background: var(--color-border);
+  z-index: 1;
+}
+
+.timeline-item.active {
   color: var(--color-accent-dark);
   font-weight: 600;
-  border-bottom-color: var(--color-accent-dark);
 }
 
-.day-pips {
-  display: flex;
-  justify-content: center;
-  gap: 3px;
-  margin-top: 4px;
-  height: 3px;
-}
-
-.day-pip {
-  width: 8px;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--color-muted);
-  opacity: 0.35;
-  transition: opacity 0.2s, background 0.2s;
-}
-
-.day-pip.active {
+.timeline-item.active .timeline-dot {
   background: var(--color-accent-dark);
-  opacity: 1;
+  border-color: var(--color-accent-dark);
+  transform: scale(1.15);
 }
 
 /* ── Map Panel (top half) ── */
@@ -178,6 +197,7 @@ body {
   flex-direction: column;
   justify-content: center;
   padding: 1.65rem 1.25rem;
+  padding-right: calc(var(--timeline-width) + 0.5rem);
   scrollbar-width: thin;
 }
 
@@ -330,12 +350,6 @@ a:hover {
 
   .event-card-content {
     padding-left: max(1.25rem, calc((100vw - 640px) / 2));
-    padding-right: max(1.25rem, calc((100vw - 640px) / 2));
-  }
-
-  .day-nav {
-    width: 100%;
-    justify-content: center;
-    gap: 1.5rem;
+    padding-right: max(calc(var(--timeline-width) + 0.5rem), calc((100vw - 640px) / 2 + var(--timeline-width)));
   }
 }

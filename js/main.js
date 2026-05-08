@@ -1,7 +1,7 @@
 // ── Elements ──
-const dayButtons = document.querySelectorAll('.day-btn');
 const eventCards = [...document.querySelectorAll('.event-card')];
 const eventsScroll = document.querySelector('.events-scroll');
+const timelineEl = document.querySelector('.event-timeline');
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 if (window.gsap && window.Observer) {
@@ -74,37 +74,44 @@ function setInitialCardState() {
 }
 
 // ── UI sync ──
-const dayPips = new Map();
+const DAY_LABELS = { pre: 'Pre', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu' };
+const timelineItems = [];
 
-function buildDayPips() {
-  dayButtons.forEach(btn => {
-    const day = btn.dataset.day;
-    const cardsForDay = eventCards.filter(c => c.dataset.day === day);
-    if (cardsForDay.length <= 1) return;
+function buildTimeline() {
+  const totalsByDay = eventCards.reduce((acc, c) => {
+    acc[c.dataset.day] = (acc[c.dataset.day] || 0) + 1;
+    return acc;
+  }, {});
+  const seenByDay = {};
 
-    const pips = document.createElement('span');
-    pips.className = 'day-pips';
-    cardsForDay.forEach(() => {
-      const pip = document.createElement('span');
-      pip.className = 'day-pip';
-      pips.appendChild(pip);
-    });
-    btn.appendChild(pips);
-    dayPips.set(day, [...pips.children]);
+  eventCards.forEach((card, index) => {
+    const day = card.dataset.day;
+    seenByDay[day] = (seenByDay[day] || 0) + 1;
+    const baseLabel = DAY_LABELS[day] || day;
+    const label = totalsByDay[day] > 1 ? `${baseLabel} ${seenByDay[day]}` : baseLabel;
+
+    const prev = eventCards[index - 1];
+    const next = eventCards[index + 1];
+    const startsDay = index !== 0 && (!prev || prev.dataset.day !== day);
+    const hasNextInDay = next && next.dataset.day === day;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'timeline-item';
+    if (startsDay) btn.classList.add('starts-day');
+    if (hasNextInDay) btn.classList.add('has-next-in-day');
+    btn.dataset.index = String(index);
+    btn.innerHTML = `<span class="timeline-label">${label}</span><span class="timeline-dot" aria-hidden="true"></span>`;
+    btn.addEventListener('click', () => snapToCard(index));
+    timelineEl.appendChild(btn);
+    timelineItems.push(btn);
   });
 }
 
 function updateDay(index) {
   const card = eventCards[index];
-  const newDay = card.dataset.day;
   const locationName = card.dataset.location || '';
-  dayButtons.forEach(b => b.classList.toggle('active', b.dataset.day === newDay));
-
-  dayPips.forEach((pips, day) => {
-    const cardsForDay = eventCards.filter(c => c.dataset.day === day);
-    const activePos = cardsForDay.indexOf(card);
-    pips.forEach((pip, i) => pip.classList.toggle('active', i === activePos));
-  });
+  timelineItems.forEach((item, i) => item.classList.toggle('active', i === index));
 
   if (typeof highlightMarker === 'function') {
     highlightMarker(locationName);
@@ -377,14 +384,6 @@ eventContents.forEach(content => {
   }, { passive: true });
 });
 
-dayButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    const targetDay = btn.dataset.day;
-    const index = eventCards.findIndex(c => c.dataset.day === targetDay);
-    snapToCard(index);
-  });
-});
-
 window.addEventListener('resize', () => {
   refreshScrollableContent();
   cleanupCards(currentIndex);
@@ -392,7 +391,7 @@ window.addEventListener('resize', () => {
 
 document.fonts?.ready?.then(refreshScrollableContent);
 
-buildDayPips();
+buildTimeline();
 setInitialCardState();
 updateDay(currentIndex);
 refreshScrollableContent();

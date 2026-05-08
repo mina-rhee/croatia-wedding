@@ -49,9 +49,19 @@ eventCards.forEach((card, index) => {
 
 const eventContents = eventCards.map(card => card.querySelector('.event-card-content'));
 
+function updateScrollFades(content) {
+  const card = content.closest('.event-card');
+  if (!card) return;
+  const scrollTop = content.scrollTop;
+  const maxScroll = Math.max(0, content.scrollHeight - content.clientHeight);
+  card.classList.toggle('can-scroll-up', scrollTop > EDGE_EPSILON);
+  card.classList.toggle('can-scroll-down', maxScroll > EDGE_EPSILON && scrollTop < maxScroll - EDGE_EPSILON);
+}
+
 function refreshScrollableContent() {
   eventContents.forEach(content => {
     content.classList.toggle('is-scrollable', content.scrollHeight > content.clientHeight + EDGE_EPSILON);
+    updateScrollFades(content);
   });
 }
 
@@ -381,6 +391,7 @@ eventContents.forEach(content => {
     if (edgeState.progress > 0 && !isAtContentBoundary(edgeState.direction)) {
       resetEdgeState(true);
     }
+    updateScrollFades(content);
   }, { passive: true });
 });
 

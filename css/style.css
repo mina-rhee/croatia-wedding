@@ -205,6 +205,37 @@ body {
   justify-content: flex-start;
 }
 
+.event-card::before,
+.event-card::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3rem;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.event-card::before {
+  top: 0;
+  background: linear-gradient(to bottom, var(--color-card), transparent);
+}
+
+.event-card::after {
+  bottom: 0;
+  background: linear-gradient(to top, var(--color-card), transparent);
+}
+
+.event-card.can-scroll-up::before {
+  opacity: 1;
+}
+
+.event-card.can-scroll-down::after {
+  opacity: 1;
+}
+
 .event-time {
   font-size: 0.72rem;
   font-weight: 500;

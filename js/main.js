@@ -22,9 +22,14 @@ const EDGE_COMMIT_PROGRESS = 0.58;
 
 // ── State ──
 const WHEEL_COOLDOWN_MS = 600;
+const WHEEL_EDGE_BUFFER = 960;
+const WHEEL_EDGE_RESET_MS = 220;
 let currentIndex = 0;
 let transitionTween = null;
 let wheelLockedUntil = 0;
+let wheelEdgeAccum = 0;
+let wheelEdgeLastTime = 0;
+let wheelEdgeDirection = 0;
 let edgeTween = null;
 let edgeResetTimer = null;
 let touchLastY = 0;
@@ -331,20 +336,33 @@ function handleDeckInput(deltaY, event) {
 // ── Wheel gesture handling ──
 // Fixed cooldown after each fire — predictable, not tied to animation.
 function handleWheel(event) {
-  event.preventDefault();
-  const now = performance.now();
-  if (now < wheelLockedUntil) return;
   if (Math.abs(event.deltaY) < 4) return;
 
   const direction = event.deltaY > 0 ? 1 : -1;
   if (!isAtContentBoundary(direction)) {
+    wheelEdgeAccum = 0;
+    wheelEdgeDirection = 0;
     resetEdgeState(true);
     return;
   }
 
+  event.preventDefault();
+  const now = performance.now();
+  if (now < wheelLockedUntil) return;
+
   const targetIndex = currentIndex + direction;
   if (targetIndex < 0 || targetIndex >= eventCards.length) return;
 
+  if (direction !== wheelEdgeDirection || now - wheelEdgeLastTime > WHEEL_EDGE_RESET_MS) {
+    wheelEdgeAccum = 0;
+    wheelEdgeDirection = direction;
+  }
+  wheelEdgeAccum += Math.abs(event.deltaY);
+  wheelEdgeLastTime = now;
+
+  if (wheelEdgeAccum < WHEEL_EDGE_BUFFER) return;
+
+  wheelEdgeAccum = 0;
   wheelLockedUntil = now + WHEEL_COOLDOWN_MS;
   closeMapPopup();
   transitionToCard(targetIndex, direction);

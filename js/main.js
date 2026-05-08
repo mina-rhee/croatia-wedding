@@ -9,7 +9,7 @@ if (window.gsap && window.Observer) {
 }
 
 // ── Motion constants ──
-const EDGE_THRESHOLD = 135;
+const EDGE_THRESHOLD = 280;
 const EDGE_RESET_DELAY = 260;
 const TRANSITION_DURATION = prefersReducedMotion ? 0.22 : 0.7;
 const DIRECT_TRANSITION_DURATION = prefersReducedMotion ? 0.18 : 0.55;
@@ -18,7 +18,7 @@ const CARD_OFFSET = prefersReducedMotion ? 0 : 40;
 const CARD_EXIT_OFFSET = prefersReducedMotion ? 0 : 18;
 const EDGE_EPSILON = 2;
 const MAX_EDGE_DELTA = 90;
-const EDGE_COMMIT_PROGRESS = 0.58;
+const EDGE_COMMIT_PROGRESS = 0.82;
 
 // ── State ──
 const WHEEL_COOLDOWN_MS = 600;
@@ -33,6 +33,7 @@ let wheelEdgeDirection = 0;
 let edgeTween = null;
 let edgeResetTimer = null;
 let touchLastY = 0;
+let dragCommitted = false;
 let edgeState = {
   direction: 0,
   progress: 0,
@@ -319,6 +320,10 @@ function snapToCard(index) {
 
 function handleDeckInput(deltaY, event) {
   if (!deltaY) return false;
+  if (dragCommitted) {
+    event.preventDefault?.();
+    return false;
+  }
 
   closeMapPopup();
 
@@ -328,7 +333,9 @@ function handleDeckInput(deltaY, event) {
     return false;
   }
 
+  const indexBefore = currentIndex;
   const consumed = updateEdgePreview(direction, Math.min(Math.abs(deltaY), MAX_EDGE_DELTA));
+  if (currentIndex !== indexBefore) dragCommitted = true;
   if (consumed) event.preventDefault?.();
   return consumed;
 }
@@ -385,7 +392,9 @@ function createObserverInput() {
       if (self.event?.type === 'wheel') return;
       handleDeckInput(-Math.max(24, Math.abs(self.deltaY)), self.event);
     },
-    onPress: () => { touchLastY = 0; },
+    onPress: () => { touchLastY = 0; dragCommitted = false; },
+    onRelease: () => { dragCommitted = false; },
+    onStop: () => { dragCommitted = false; },
   });
 
   return true;
@@ -394,6 +403,7 @@ function createObserverInput() {
 function createFallbackInput() {
   eventsScroll.addEventListener('touchstart', event => {
     touchLastY = event.touches[0].clientY;
+    dragCommitted = false;
   }, { passive: true });
 
   eventsScroll.addEventListener('touchmove', event => {
@@ -402,6 +412,14 @@ function createFallbackInput() {
     touchLastY = nextY;
     handleDeckInput(deltaY, event);
   }, { passive: false });
+
+  eventsScroll.addEventListener('touchend', () => {
+    dragCommitted = false;
+  }, { passive: true });
+
+  eventsScroll.addEventListener('touchcancel', () => {
+    dragCommitted = false;
+  }, { passive: true });
 }
 
 eventContents.forEach(content => {

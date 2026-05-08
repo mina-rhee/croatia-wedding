@@ -288,12 +288,17 @@ a:hover {
   transform: translate(-50%, -55%);
   z-index: 1000;
   pointer-events: none;
-  opacity: 0;
   transition: transform 0.12s linear;
 }
 
-#map-bird.visible {
-  opacity: 1;
+.map-bird-life {
+  transform: scale(0) rotate(30deg);
+  transform-origin: center;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#map-bird.visible .map-bird-life {
+  transform: scale(1) rotate(0deg);
 }
 
 #map-bird svg {

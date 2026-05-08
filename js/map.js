@@ -42,6 +42,8 @@ const TARGET_ZOOM = 13;
 const MIN_FLIGHT_DURATION = 2.075;
 const MAX_FLIGHT_DURATION = 5.5;
 const FLIGHT_PIXELS_PER_SECOND = 712;
+const BIRD_SCALE_MS = 400;
+const BIRD_TAKEOFF_DELAY = 300;
 
 // ── Map Setup ──
 const map = L.map('map-container', {
@@ -81,7 +83,7 @@ const markers = locations.map(loc => {
 // ── Flapping bird overlay ──
 const mapBird = document.createElement('div');
 mapBird.id = 'map-bird';
-mapBird.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-65 -45 130 90" width="75" height="52">
+mapBird.innerHTML = `<div class="map-bird-life"><svg xmlns="http://www.w3.org/2000/svg" viewBox="-65 -45 130 90" width="75" height="52">
   <g class="bird-wing-lower" style="transform-origin:0px 5px">
     <path d="M0 5 Q-16 22 -38 20 Q-16 10 0 5" fill="#c4bfb5"/>
   </g>
@@ -95,7 +97,7 @@ mapBird.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-65 -45 13
   <g class="bird-wing-upper" style="transform-origin:0px 5px">
     <path d="M0 5 Q-18 -20 -42 -16 Q-18 -4 0 5" fill="#e6e1d8"/>
   </g>
-</svg>`;
+</svg></div>`;
 document.getElementById('map-container').appendChild(mapBird);
 
 function birdScale() {
@@ -103,23 +105,28 @@ function birdScale() {
   const zoomDelta = Math.max(0, TARGET_ZOOM - zoom);
   const scale = Math.min(1.35, 1 + zoomDelta * 0.28);
   const flip = Math.abs(currentBearing) > 90;
-  mapBird.style.transform = `translate(-50%, -55%) scale(${flip ? -scale : scale}, ${scale})`;
+  // When flipped, scaleX(-1) is applied after rotate, so we need rotate(180 - bearing)
+  // to land on the actual heading.
+  const rotation = flip ? 180 - currentBearing : currentBearing;
+  mapBird.style.transform = `translate(-50%, -55%) scale(${flip ? -scale : scale}, ${scale}) rotate(${rotation}deg)`;
   mapBird.classList.toggle('bird-flapping', zoomDelta > 0.1);
 }
 
 map.on('zoom', birdScale);
 
 let currentBearing = 0;
-let birdShowTimer = null;
+let flightStartTimer = null;
 let birdHideTimer = null;
+// True from highlightMarker call until birdHideTimer fires. Guards against
+// the previous flight's moveend clobbering setup during the flyTo delay.
+let flightActive = false;
 
 function hideBird() {
   mapBird.classList.remove('visible', 'bird-flapping');
-  mapBird.style.transform = '';
 }
 
 map.on('moveend', () => {
-  clearTimeout(birdShowTimer);
+  if (flightActive) return;
   clearTimeout(birdHideTimer);
   hideBird();
 });
@@ -223,15 +230,21 @@ function highlightMarker(locationName) {
     currentBearing = Math.atan2(endPx.y - startPx.y, endPx.x - startPx.x) * 180 / Math.PI;
 
     const duration = calculateFlightDuration(source, target);
-    map.flyTo([target.lat, target.lng], TARGET_ZOOM, { duration });
-
-    clearTimeout(birdShowTimer);
-    clearTimeout(birdHideTimer);
     const durationMs = duration * 1000;
-    birdShowTimer = setTimeout(() => {
-      mapBird.classList.add('visible');
-      birdScale();
-    }, 200);
-    birdHideTimer = setTimeout(hideBird, durationMs - 200);
+
+    clearTimeout(flightStartTimer);
+    clearTimeout(birdHideTimer);
+
+    flightActive = true;
+    mapBird.classList.add('visible');
+    birdScale();
+
+    flightStartTimer = setTimeout(() => {
+      map.flyTo([target.lat, target.lng], TARGET_ZOOM, { duration });
+    }, BIRD_TAKEOFF_DELAY);
+    birdHideTimer = setTimeout(() => {
+      hideBird();
+      flightActive = false;
+    }, BIRD_TAKEOFF_DELAY + durationMs - BIRD_SCALE_MS);
   }
 }

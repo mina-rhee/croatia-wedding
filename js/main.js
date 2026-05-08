@@ -391,9 +391,19 @@ window.addEventListener('resize', () => {
 
 document.fonts?.ready?.then(refreshScrollableContent);
 
+function handleKeydown(event) {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+  const direction = event.key === 'ArrowDown' ? 1 : -1;
+  const targetIndex = currentIndex + direction;
+  if (targetIndex < 0 || targetIndex >= eventCards.length) return;
+  event.preventDefault();
+  snapToCard(targetIndex);
+}
+
 buildTimeline();
 setInitialCardState();
 updateDay(currentIndex);
 refreshScrollableContent();
 createObserverInput() || createFallbackInput();
 eventsScroll.addEventListener('wheel', handleWheel, { passive: false });
+document.addEventListener('keydown', handleKeydown);

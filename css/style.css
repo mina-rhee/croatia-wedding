@@ -158,82 +158,74 @@ body {
   background: rgba(255,255,255,0.7);
 }
 
-/* ── Event Deck (bottom half, sticky card transitions) ── */
+/* ── Events Panel (bottom half, normal document scroll) ── */
 .events-scroll {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
-  overscroll-behavior: contain;
   position: relative;
   background: var(--color-card);
-  touch-action: pan-y;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* contains the inner scroller */
+}
+
+.events-scroll-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .events-scroll-list { scroll-behavior: auto; }
 }
 
 /* ── Event Cards ── */
 .event-card {
-  position: absolute;
-  inset: 0;
-  height: 100%;
+  position: relative;
   background: var(--color-card);
   border-bottom: 1px solid var(--color-border);
-  opacity: 0;
-  pointer-events: none;
-  will-change: opacity, transform;
-  transform: translateY(30px);
-}
-
-.event-card.active {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
-}
-
-.event-card-content {
-  height: 100%;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
   padding: 1.65rem 1.25rem;
   padding-right: calc(var(--timeline-width) + 0.5rem);
-  scrollbar-width: thin;
 }
 
-.event-card-content.is-scrollable {
-  justify-content: flex-start;
+.event-card:last-child {
+  border-bottom: none;
+  padding-bottom: 3rem;
 }
 
-.event-card::before,
-.event-card::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 3rem;
-  pointer-events: none;
-  z-index: 2;
+/* ── Entrance animation: subtle fade-up when a section scrolls into view ── */
+.event-card > * {
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transform: translateY(10px);
 }
 
-.event-card::before {
-  top: 0;
-  background: linear-gradient(to bottom, var(--color-card), transparent);
+.event-card.has-entered > * {
+  animation: card-enter 0.55s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
 }
 
-.event-card::after {
-  bottom: 0;
-  background: linear-gradient(to top, var(--color-card), transparent);
+.event-card.has-entered > *:nth-child(1) { animation-delay: 0s; }
+.event-card.has-entered > *:nth-child(2) { animation-delay: 0.05s; }
+.event-card.has-entered > *:nth-child(3) { animation-delay: 0.1s; }
+.event-card.has-entered > *:nth-child(4) { animation-delay: 0.15s; }
+.event-card.has-entered > *:nth-child(n+5) { animation-delay: 0.2s; }
+
+@keyframes card-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
 }
 
-.event-card.can-scroll-up::before {
-  opacity: 1;
-}
-
-.event-card.can-scroll-down::after {
-  opacity: 1;
+@media (prefers-reduced-motion: reduce) {
+  .event-card > * {
+    opacity: 1;
+    transform: none;
+  }
+  .event-card.has-entered > * {
+    animation: none;
+  }
 }
 
 .event-time {
@@ -384,7 +376,7 @@ a:hover {
     width: 100%;
   }
 
-  .event-card-content {
+  .event-card {
     padding-left: max(1.25rem, calc((100vw - 640px) / 2));
     padding-right: max(calc(var(--timeline-width) + 0.5rem), calc((100vw - 640px) / 2 + var(--timeline-width)));
   }

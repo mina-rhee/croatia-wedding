@@ -44,7 +44,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-bottom: 1px solid var(--color-border);
   background: var(--color-card);
   font-family: var(--font-sans);
   font-size: 0.65rem;
@@ -79,7 +78,7 @@ body {
   grid-template-columns: 1fr 9px;
   align-items: center;
   gap: 0.55rem;
-  padding: 0.18rem 0;
+  padding: 0.45rem 0;
   font-family: var(--font-sans);
   font-size: 0.68rem;
   font-weight: 400;
@@ -187,13 +186,21 @@ body {
 .event-card {
   position: relative;
   background: var(--color-card);
-  border-bottom: 1px solid var(--color-border);
   padding: 1.65rem 1.25rem;
   padding-right: calc(var(--timeline-width) + 0.5rem);
 }
 
+.event-card:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 1.25rem;
+  right: calc(var(--timeline-width) + 0.5rem);
+  height: 1px;
+  background: var(--color-border);
+}
+
 .event-card:last-child {
-  border-bottom: none;
   padding-bottom: 3rem;
 }
 
@@ -366,7 +373,7 @@ a:hover {
 }
 
 /* ── Responsive — larger screens ── */
-@media (min-width: 768px) {
+@media (min-width: 700px) {
   .map-panel {
     width: 100%;
     padding: 1rem 0 0;
@@ -379,5 +386,32 @@ a:hover {
   .event-card {
     padding-left: max(1.25rem, calc((100vw - 640px) / 2));
     padding-right: max(calc(var(--timeline-width) + 0.5rem), calc((100vw - 640px) / 2 + var(--timeline-width)));
+  }
+
+  #map-container {
+    max-width: 640px;
+  }
+
+  .event-timeline {
+    right: max(0px, calc((100vw - 640px) / 2));
+  }
+
+  .site-header {
+    position: relative;
+  }
+
+  .site-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: max(1.25rem, calc((100vw - 640px) / 2));
+    right: calc(max(1.25rem, calc((100vw - 640px) / 2)) + var(--timeline-width) + 0.5rem);
+    height: 1px;
+    background: var(--color-border);
+  }
+
+  .event-card:not(:last-child)::after {
+    left: max(1.25rem, calc((100vw - 640px) / 2));
+    right: calc(max(1.25rem, calc((100vw - 640px) / 2)) + var(--timeline-width) + 0.5rem);
   }
 }

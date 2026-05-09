@@ -80,11 +80,13 @@ function snapToCard(index) {
 function setupScrollSpy() {
   // The card whose top crosses the upper third of the scroller becomes active.
   const intersecting = new Set();
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) intersecting.add(entry.target);
-      else intersecting.delete(entry.target);
-    });
+  const SCROLL_END_TOLERANCE = 10;
+
+  const pickActive = () => {
+    if (scrollList.scrollTop + scrollList.clientHeight >= scrollList.scrollHeight - SCROLL_END_TOLERANCE) {
+      setActive(eventCards.length - 1);
+      return;
+    }
     let topmostIndex = -1;
     let topmostTop = Infinity;
     intersecting.forEach(target => {
@@ -95,6 +97,14 @@ function setupScrollSpy() {
       }
     });
     if (topmostIndex !== -1) setActive(topmostIndex);
+  };
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) intersecting.add(entry.target);
+      else intersecting.delete(entry.target);
+    });
+    pickActive();
   }, {
     root: scrollList,
     rootMargin: '-15% 0px -65% 0px',
@@ -102,6 +112,7 @@ function setupScrollSpy() {
   });
 
   eventCards.forEach(card => observer.observe(card));
+  scrollList.addEventListener('scroll', pickActive, { passive: true });
 }
 
 // ── Entrance animation: fades up the section as it scrolls into view ──

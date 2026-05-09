@@ -79,19 +79,22 @@ function snapToCard(index) {
 // ── Scrollspy: which card is currently "active" based on scroll position ──
 function setupScrollSpy() {
   // The card whose top crosses the upper third of the scroller becomes active.
+  const intersecting = new Set();
   const observer = new IntersectionObserver(entries => {
-    // Find the topmost intersecting card in the active band.
-    let topmost = null;
     entries.forEach(entry => {
-      if (!entry.isIntersecting) return;
-      if (!topmost || entry.boundingClientRect.top < topmost.boundingClientRect.top) {
-        topmost = entry;
+      if (entry.isIntersecting) intersecting.add(entry.target);
+      else intersecting.delete(entry.target);
+    });
+    let topmostIndex = -1;
+    let topmostTop = Infinity;
+    intersecting.forEach(target => {
+      const top = target.getBoundingClientRect().top;
+      if (top < topmostTop) {
+        topmostTop = top;
+        topmostIndex = eventCards.indexOf(target);
       }
     });
-    if (topmost) {
-      const index = eventCards.indexOf(topmost.target);
-      if (index !== -1) setActive(index);
-    }
+    if (topmostIndex !== -1) setActive(topmostIndex);
   }, {
     root: scrollList,
     rootMargin: '-15% 0px -65% 0px',

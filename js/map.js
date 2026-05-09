@@ -213,9 +213,9 @@ function calculateFlightDuration(from, to) {
 
 function highlightMarker(locationName) {
   if (!locationName || locationName === currentMarkerName) return;
-  const source = markers.find(m => m.name === currentMarkerName);
   const target = markers.find(m => m.name === locationName);
   if (!target) return;
+  const hadPrevious = currentMarkerName && currentMarkerName !== locationName;
   currentMarkerName = locationName;
 
   markers.forEach(m => {
@@ -224,12 +224,13 @@ function highlightMarker(locationName) {
     m.marker.setZIndexOffset(isActive ? 1000 : 0);
   });
 
-  if (source) {
-    const startPx = map.project([source.lat, source.lng]);
+  if (hadPrevious) {
+    const origin = map.getCenter();
+    const startPx = map.project(origin);
     const endPx   = map.project([target.lat, target.lng]);
     currentBearing = Math.atan2(endPx.y - startPx.y, endPx.x - startPx.x) * 180 / Math.PI;
 
-    const duration = calculateFlightDuration(source, target);
+    const duration = calculateFlightDuration(origin, target);
     const durationMs = duration * 1000;
 
     clearTimeout(flightStartTimer);
